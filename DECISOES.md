@@ -38,6 +38,8 @@ Toda consulta parte da conta do usuário autenticado (`$user->account`). Por iss
 
 ## Limitações conhecidas
 
+## Limitações conhecidas
+
 - Ao repetir uma requisição idempotente, a API devolve o saldo atual, e não uma cópia exata da resposta original.
-- A concorrência é garantida por `lockForUpdate()` e explicada aqui, mas não há teste automatizado com requisições simultâneas reais.
+- A atomicidade tem teste automatizado (falha simulada ao gravar o histórico). A concorrência é garantida por `lockForUpdate()` e explicada neste documento, mas não há teste com requisições simultâneas reais.
 - A lógica de crédito, débito e estorno está nos métodos do `TransactionController`, e as rotas em `routes/api.php` só apontam para eles. Crédito e débito ainda repetem parte do código. Uma evolução natural é extrair essa parte para uma classe de serviço e mover a validação para Form Requests.
