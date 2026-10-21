@@ -13,15 +13,19 @@ Route::post('/register', function (Request $request) {
         'password' => ['required', 'string', 'min:8'],
     ]);
 
-    $user = User::create([
-        'name' => $data['name'],
-        'email' => $data['email'],
-        'password' => Hash::make($data['password']),
-    ]);
+    $user = DB::transaction(function () use ($data) {
+        $user = User::create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => Hash::make($data['password']),
+        ]);
 
-    $user->account()->create([
-    'balance_cents' => 0,
-]);
+        $user->account()->create([
+            'balance_cents' => 0,
+        ]);
+
+        return $user;
+    });
 
     $token = $user->createToken('auth_token')->plainTextToken;
 
