@@ -40,4 +40,4 @@ Toda consulta parte da conta do usuário autenticado (`$user->account`). Por iss
 
 - Ao repetir uma requisição idempotente, a API devolve o saldo atual, e não uma cópia exata da resposta original.
 - A concorrência é garantida por `lockForUpdate()` e explicada aqui, mas não há teste automatizado com requisições simultâneas reais.
-- As rotas e a lógica estão em `routes/api.php`. Uma evolução natural é movê-las para controllers, Form Requests e uma classe de serviço.
+- A lógica de crédito, débito e estorno está nos métodos do `TransactionController`, e as rotas em `routes/api.php` só apontam para eles. Crédito e débito ainda repetem parte do código. Uma evolução natural é extrair essa parte para uma classe de serviço e mover a validação para Form Requests.
