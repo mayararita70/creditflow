@@ -1,40 +1,43 @@
 # Decisões Técnicas — CreditFlow
 
-## 1. Linguagem e framework
+## 1. Valores em centavos inteiros
 
-O projeto foi desenvolvido em PHP utilizando o framework Laravel. A escolha permite organizar as rotas, validações, autenticação, acesso ao banco de dados e testes automatizados de forma estruturada.
+**Decisão:** saldo e valores das movimentações são guardados como inteiros em centavos (`balance_cents` e `amount_cents`, tipo `bigint`). A API recebe o valor em reais com até 2 casas decimais (por exemplo, `50.00`), valida com `decimal:0,2` e `gt:0`, e converte para centavos.
 
-## 2. Banco de dados
+**Motivo:** números de ponto flutuante não representam decimais com exatidão (`0.1 + 0.2` resulta em `0.30000000000000004`). Com inteiros, somar e subtrair é exato. A conversão usa `round($valor * 100)`, que é segura porque a validação limita o valor a 2 casas decimais.
 
-Foi utilizado PostgreSQL para armazenar usuários, contas e transações financeiras.
+## 2. Transação de banco com trava na conta
 
-O saldo e os valores das transações são armazenados em centavos, utilizando números inteiros (`amount_cents` e `balance_cents`). Essa abordagem evita os problemas de precisão que podem ocorrer ao utilizar números de ponto flutuante para representar valores monetários.
+**Decisão:** crédito, débito e estorno rodam dentro de `DB::transaction()`, e a primeira coisa feita é buscar a conta com `lockForUpdate()`. O saldo só é lido depois da trava.
 
-## 3. Autenticação
+**Motivo:** a transação garante que saldo e histórico mudam juntos ou não mudam (atomicidade). A trava garante que, se duas requisições chegarem ao mesmo tempo para a mesma conta, a segunda espera a primeira terminar e já enxerga o saldo atualizado. Sem isso, as duas poderiam ler o mesmo saldo e gastá-lo duas vezes.
 
-A API utiliza Laravel Sanctum para proteger as rotas que exigem autenticação. Dessa forma, as operações financeiras e a consulta de informações da conta dependem de um usuário autenticado.
+## 3. Idempotência por conta, com hash que inclui o tipo
 
-## 4. Idempotência nas operações financeiras
+**Decisão:** crédito e débito exigem o cabeçalho `Idempotency-Key`. Guardamos a chave e um hash do conteúdo (`credit:<centavos>` ou `debit:<centavos>`). Há índice único em (`account_id`, `idempotency_key`). Ao receber uma chave já usada:
+- mesmo tipo e mesmo valor: não executa de novo e responde sucesso;
+- tipo ou valor diferente: rejeita com 409.
 
-As operações de crédito utilizam uma chave de idempotência enviada no cabeçalho `Idempotency-Key`.
+**Motivo:** o cliente pode repetir um pedido por falha de rede, e isso não pode cobrar duas vezes. O tipo entra no hash porque, numa revisão, descobrimos que um débito e um crédito de mesmo valor tinham o mesmo hash, e o crédito era tratado como repetição sem ser executado. O teste `reusing a debit key for credit is rejected` cobre esse caso. A unicidade é por conta, então usuários diferentes podem usar a mesma chave sem conflito.
 
-O objetivo é evitar que uma mesma solicitação seja processada mais de uma vez quando o cliente repete uma requisição. A chave é associada aos dados da solicitação para permitir a identificação de repetições e a rejeição de reutilizações incompatíveis.
+## 4. Estorno como movimentação compensatória
 
-## 5. Controle de saldo e transações
+**Decisão:** estornar cria uma nova linha do tipo `reversal`, ligada à original por `reversal_of_id`. A original nunca é alterada nem apagada. Há índice único em `reversal_of_id`, e o código recusa estornar um estorno. Estornar um crédito só é permitido se o saldo atual cobrir o valor.
 
-As operações financeiras utilizam transações de banco de dados para manter a consistência das alterações. O saldo é atualizado junto ao registro da movimentação, e o débito é recusado quando não há saldo suficiente.
+**Motivo:** o histórico financeiro precisa ser auditável, então não se apaga nem se edita um lançamento. O índice único faz o próprio banco impedir um segundo estorno do mesmo lançamento, mesmo que duas requisições cheguem juntas. A checagem de saldo no estorno de crédito mantém a regra de que o saldo nunca fica negativo.
 
-## 6. Estorno
+## 5. Regras críticas também no banco de dados
 
-O estorno é registrado como uma nova transação do tipo `reversal`, relacionada à transação original por meio de `reversal_of_id`.
+**Decisão:** além do código, o banco impõe regras com `CHECK` (`balance_cents >= 0`, `amount_cents > 0`, tipo entre `credit`, `debit` e `reversal`), índices únicos (idempotência, estorno e uma conta por usuário) e chaves estrangeiras.
 
-Essa abordagem preserva o histórico financeiro em vez de apagar a movimentação original. O sistema também impede o estorno repetido da mesma transação nos cenários testados.
+**Motivo:** o código PHP pode ter um bug ou ser burlado por uma situação que não previmos. O banco é a última barreira e protege os dados mesmo assim. Por isso, as regras mais importantes existem nas duas camadas.
 
-## 7. Extrato
+## Isolamento entre usuários
 
-O extrato permite consultar as transações da conta autenticada, filtrar movimentações e limitar a quantidade de registros retornados por página.
+Toda consulta parte da conta do usuário autenticado (`$user->account`). Por isso, um `id` de outra pessoa na URL do estorno resulta em 404. O "responsável" de cada movimentação é o dono da conta, já que só o dono opera a própria conta.
 
-## 8. Testes automatizados
+## Limitações conhecidas
 
-Foram criados testes automatizados para cadastro, login, consulta de saldo, crédito, débito, extrato e estorno. Os testes utilizam um banco de dados separado, `creditflow_test`, para evitar que a execução da suíte altere os dados do banco principal.
-
+- Ao repetir uma requisição idempotente, a API devolve o saldo atual, e não uma cópia exata da resposta original.
+- A concorrência é garantida por `lockForUpdate()` e explicada aqui, mas não há teste automatizado com requisições simultâneas reais.
+- As rotas e a lógica estão em `routes/api.php`. Uma evolução natural é movê-las para controllers, Form Requests e uma classe de serviço.
