@@ -50,6 +50,8 @@ DB_USERNAME=postgres
 DB_PASSWORD=sua_senha
 ```
 
+A senha em `DB_PASSWORD` também é usada pelos testes, que rodam no banco `creditflow_test`.
+
 6. Crie as tabelas:
 
 ```bash
