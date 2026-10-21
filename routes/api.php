@@ -210,8 +210,15 @@ Route::post('/transactions/debit', function (Request $request) {
 Route::get('/transactions', function (Request $request) {
     $user = $request->user();
 
-    $query = $user->account->transactions();
+        $account = $user->account;
 
+    if ($account === null) {
+        return response()->json([
+            'message' => 'Conta não encontrada.',
+        ], 404);
+    }
+
+    $query = $account->transactions();
     if ($request->filled('type')) {
         $request->validate([
             'type' => ['in:credit,debit,reversal'],
