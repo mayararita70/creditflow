@@ -61,62 +61,58 @@ class CreditTest extends TestCase
 
         $this->assertDatabaseCount('transactions', 1);
     }
-    
-public function test_reusing_credit_key_with_different_amount_is_rejected(): void
-{
-    $user = User::factory()->create();
 
-    Account::create([
-        'user_id' => $user->id,
-        'balance_cents' => 0,
-    ]);
+    public function test_reusing_credit_key_with_different_amount_is_rejected(): void
+    {
+        $user = User::factory()->create();
 
-    $this->actingAs($user, 'sanctum')
-        ->withHeader('Idempotency-Key', 'credito-diferente-001')
-        ->postJson('/api/transactions/credit', [
-            'amount' => 50.00,
-        ])
-        ->assertOk();
+        Account::create([
+            'user_id' => $user->id,
+            'balance_cents' => 0,
+        ]);
 
-    $this->withHeader('Idempotency-Key', 'credito-diferente-001')
-        ->postJson('/api/transactions/credit', [
-            'amount' => 80.00,
-        ])
-        ->assertStatus(409);
+        $this->actingAs($user, 'sanctum')
+            ->withHeader('Idempotency-Key', 'credito-diferente-001')
+            ->postJson('/api/transactions/credit', [
+                'amount' => 50.00,
+            ])
+            ->assertOk();
 
-    $this->assertDatabaseHas('accounts', [
-        'user_id' => $user->id,
-        'balance_cents' => 5000,
-    ]);
+        $this->withHeader('Idempotency-Key', 'credito-diferente-001')
+            ->postJson('/api/transactions/credit', [
+                'amount' => 80.00,
+            ])
+            ->assertStatus(409);
 
-    $this->assertDatabaseCount('transactions', 1);
+        $this->assertDatabaseHas('accounts', [
+            'user_id' => $user->id,
+            'balance_cents' => 5000,
+        ]);
+
+        $this->assertDatabaseCount('transactions', 1);
+    }
+
+    public function test_reusing_a_debit_key_for_credit_is_rejected(): void
+    {
+        $user = User::factory()->create();
+
+        Account::create([
+            'user_id' => $user->id,
+            'balance_cents' => 10000,
+        ]);
+
+        $this->actingAs($user, 'sanctum')
+            ->withHeader('Idempotency-Key', 'chave-compartilhada-001')
+            ->postJson('/api/transactions/debit', ['amount' => 25.00])
+            ->assertOk();
+
+        $this->withHeader('Idempotency-Key', 'chave-compartilhada-001')
+            ->postJson('/api/transactions/credit', ['amount' => 25.00])
+            ->assertStatus(409);
+
+        $this->assertDatabaseHas('accounts', [
+            'user_id' => $user->id,
+            'balance_cents' => 7500,
+        ]);
+    }
 }
-
-
-public function test_reusing_a_debit_key_for_credit_is_rejected(): void
-{
-    $user = User::factory()->create();
-
-    Account::create([
-        'user_id' => $user->id,
-        'balance_cents' => 10000,
-    ]);
-
-    $this->actingAs($user, 'sanctum')
-        ->withHeader('Idempotency-Key', 'chave-compartilhada-001')
-        ->postJson('/api/transactions/debit', ['amount' => 25.00])
-        ->assertOk();
-
-    $this->withHeader('Idempotency-Key', 'chave-compartilhada-001')
-        ->postJson('/api/transactions/credit', ['amount' => 25.00])
-        ->assertStatus(409);
-
-    $this->assertDatabaseHas('accounts', [
-        'user_id' => $user->id,
-        'balance_cents' => 7500,
-    ]);
-}
-
-}
-
-

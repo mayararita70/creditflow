@@ -61,7 +61,7 @@ class DebitTest extends TestCase
             'balance_cents' => 10000,
         ]);
     }
-    
+
     public function test_reusing_debit_key_with_different_amount_is_rejected(): void
     {
         $user = User::factory()->create();
@@ -91,5 +91,4 @@ class DebitTest extends TestCase
 
         $this->assertDatabaseCount('transactions', 1);
     }
-
 }

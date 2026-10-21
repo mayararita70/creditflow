@@ -3,8 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
-use App\Models\User;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -56,7 +56,7 @@ class TransactionHistoryTest extends TestCase
 
         $response->assertUnauthorized();
     }
-    
+
     public function test_user_can_only_view_their_own_transaction_history(): void
     {
         $user1 = User::factory()->create();
@@ -87,14 +87,14 @@ class TransactionHistoryTest extends TestCase
         $response = $this->actingAs($user1, 'sanctum')
             ->getJson('/api/transactions');
 
-               $response->assertOk()
+        $response->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonFragment([
                 'type' => 'credit',
                 'amount_cents' => 5000,
             ]);
     }
-    
+
     public function test_user_can_filter_transaction_history_by_type(): void
     {
         $user = User::factory()->create();
@@ -163,6 +163,4 @@ class TransactionHistoryTest extends TestCase
                 'amount_cents' => 10000,
             ]);
     }
-
-
 }

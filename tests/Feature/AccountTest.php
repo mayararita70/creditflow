@@ -29,7 +29,7 @@ class AccountTest extends TestCase
                 'balance' => '150,00',
             ]);
     }
-    
+
     public function test_user_can_only_view_their_own_account_balance(): void
     {
         $user1 = User::factory()->create();
@@ -58,5 +58,4 @@ class AccountTest extends TestCase
                 'balance' => '900,00',
             ]);
     }
-
 }

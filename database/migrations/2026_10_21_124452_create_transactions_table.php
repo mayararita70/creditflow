@@ -26,7 +26,7 @@ return new class extends Migration
             $table->index(['account_id', 'created_at']);
         });
 
-        DB::statement("ALTER TABLE transactions ADD CONSTRAINT transactions_amount_positive CHECK (amount_cents > 0)");
+        DB::statement('ALTER TABLE transactions ADD CONSTRAINT transactions_amount_positive CHECK (amount_cents > 0)');
         DB::statement("ALTER TABLE transactions ADD CONSTRAINT transactions_type_valid CHECK (type IN ('credit', 'debit', 'reversal'))");
     }
 

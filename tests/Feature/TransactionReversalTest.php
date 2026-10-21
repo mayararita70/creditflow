@@ -43,7 +43,7 @@ class TransactionReversalTest extends TestCase
             'amount_cents' => 2500,
             'reversal_of_id' => $transaction->id,
         ]);
-                $this->assertDatabaseHas('transactions', [
+        $this->assertDatabaseHas('transactions', [
             'id' => $transaction->id,
             'account_id' => $account->id,
             'type' => 'debit',

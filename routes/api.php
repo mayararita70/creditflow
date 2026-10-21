@@ -2,9 +2,9 @@
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\DB;
 
 Route::post('/register', function (Request $request) {
     $data = $request->validate([
@@ -44,7 +44,7 @@ Route::post('/login', function (Request $request) {
 
     $user = User::where('email', $data['email'])->first();
 
-    if (!$user || !Hash::check($data['password'], $user->password)) {
+    if (! $user || ! Hash::check($data['password'], $user->password)) {
         return response()->json([
             'message' => 'E-mail ou senha inválidos.',
         ], 401);
@@ -69,61 +69,61 @@ Route::post('/transactions/credit', function (Request $request) {
         'amount' => ['required', 'numeric', 'decimal:0,2', 'gt:0', 'max:1000000'],
     ]);
 
-  $idempotencyKey = trim((string) $request->header('Idempotency-Key', ''));
+    $idempotencyKey = trim((string) $request->header('Idempotency-Key', ''));
 
-if ($idempotencyKey === '' || strlen($idempotencyKey) > 100) {
-    return response()->json([
-        'message' => 'Uma chave de idempotência válida é obrigatória.',
-    ], 422);
-}
-     $account = $user->account;
-
-     if ($account === null) {
+    if ($idempotencyKey === '' || strlen($idempotencyKey) > 100) {
         return response()->json([
-            'message' => 'Conta não encontrada.'
+            'message' => 'Uma chave de idempotência válida é obrigatória.',
+        ], 422);
+    }
+    $account = $user->account;
+
+    if ($account === null) {
+        return response()->json([
+            'message' => 'Conta não encontrada.',
         ], 404);
     }
     $amountCents = (int) round($data['amount'] * 100);
-    $requestHash = hash('sha256', 'credit:' . $amountCents);
+    $requestHash = hash('sha256', 'credit:'.$amountCents);
     $newBalance = DB::transaction(function () use ($user, $amountCents, $idempotencyKey, $requestHash) {
-   $account = $user->account()
-    ->lockForUpdate()
-    ->first();
-    if ($account === null) {
-    abort(404, 'Conta não encontrada.');
-}
-$existingTransaction = $account->transactions()
-    ->where('idempotency_key', $idempotencyKey)
-    ->first();
+        $account = $user->account()
+            ->lockForUpdate()
+            ->first();
+        if ($account === null) {
+            abort(404, 'Conta não encontrada.');
+        }
+        $existingTransaction = $account->transactions()
+            ->where('idempotency_key', $idempotencyKey)
+            ->first();
 
-if ($existingTransaction !== null) {
-    if ($existingTransaction->type !== 'credit' ||
-        $existingTransaction->request_hash !== $requestHash) {
-        abort(409, 'Esta chave já foi usada em outra operação.');
-    }
+        if ($existingTransaction !== null) {
+            if ($existingTransaction->type !== 'credit' ||
+                $existingTransaction->request_hash !== $requestHash) {
+                abort(409, 'Esta chave já foi usada em outra operação.');
+            }
 
-    return $account->balance_cents;
-}
-$newBalance = $account->balance_cents + $amountCents;
-$account->update([
-    'balance_cents' => $newBalance,
-]);
-$account->transactions()->create([
-    'type' => 'credit',
-    'amount_cents' => $amountCents,
-    'idempotency_key' => $idempotencyKey,
-    'request_hash' => $requestHash,
-]);
-return $newBalance;
-});
+            return $account->balance_cents;
+        }
+        $newBalance = $account->balance_cents + $amountCents;
+        $account->update([
+            'balance_cents' => $newBalance,
+        ]);
+        $account->transactions()->create([
+            'type' => 'credit',
+            'amount_cents' => $amountCents,
+            'idempotency_key' => $idempotencyKey,
+            'request_hash' => $requestHash,
+        ]);
 
-return response()->json([
-    'message' => 'Depósito realizado com sucesso!',
-    'balance_cents' => $newBalance,
-]);
+        return $newBalance;
+    });
+
+    return response()->json([
+        'message' => 'Depósito realizado com sucesso!',
+        'balance_cents' => $newBalance,
+    ]);
 
 })->middleware('auth:sanctum');
-
 
 Route::get('/account', function (Request $request) {
     $account = $request->user()->account;
@@ -139,7 +139,6 @@ Route::get('/account', function (Request $request) {
         'balance' => number_format($account->balance_cents / 100, 2, ',', '.'),
     ]);
 })->middleware('auth:sanctum');
-  
 
 Route::post('/transactions/debit', function (Request $request) {
     $user = $request->user();
@@ -157,7 +156,7 @@ Route::post('/transactions/debit', function (Request $request) {
     }
 
     $amountCents = (int) round($data['amount'] * 100);
-   $requestHash = hash('sha256', 'debit:' . $amountCents);
+    $requestHash = hash('sha256', 'debit:'.$amountCents);
     $newBalance = DB::transaction(function () use ($user, $amountCents, $idempotencyKey, $requestHash) {
         $account = $user->account()
             ->lockForUpdate()
@@ -206,11 +205,10 @@ Route::post('/transactions/debit', function (Request $request) {
     ]);
 })->middleware('auth:sanctum');
 
-
 Route::get('/transactions', function (Request $request) {
     $user = $request->user();
 
-        $account = $user->account;
+    $account = $user->account;
 
     if ($account === null) {
         return response()->json([
@@ -250,7 +248,6 @@ Route::get('/transactions', function (Request $request) {
 
     return response()->json($transactions);
 })->middleware('auth:sanctum');
-
 
 Route::post('/transactions/{id}/reverse', function (Request $request, string $id) {
     $user = $request->user();
@@ -312,5 +309,3 @@ Route::post('/transactions/{id}/reverse', function (Request $request, string $id
         'balance_cents' => $newBalance,
     ]);
 })->middleware('auth:sanctum');
-
-
